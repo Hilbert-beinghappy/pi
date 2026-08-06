@@ -59,13 +59,29 @@ function createSettingsManager(themeSetting: string | undefined): {
 afterEach(() => {
 	setRegisteredThemes([]);
 	initTheme("dark");
+	vi.unstubAllEnvs();
 });
 
 describe("InteractiveThemeController", () => {
-	it("resolves a paired invocation override when settings are reapplied", async () => {
+	it("starts with the paired override matching the terminal environment", () => {
+		vi.stubEnv("COLORFGBG", "15;0");
+		setRegisteredThemes([{ name: "dayowl" }, { name: "nightowl" }] as Theme[]);
+		const { ui } = createUi();
+		const { settingsManager } = createSettingsManager("light/dark");
+		const controller = new InteractiveThemeController(ui, settingsManager, {
+			showError: vi.fn(),
+			onChanged: vi.fn(),
+			themeOverride: "dayowl/nightowl",
+		});
+
+		expect(controller.getTerminalTheme()).toBe("dark");
+		expect(theme.name).toBe("nightowl");
+	});
+
+	it("keeps the paired override when settings are reloaded", async () => {
 		setRegisteredThemes([{ name: "dayowl" }, { name: "nightowl" }] as Theme[]);
 		const { ui, queryTerminalColorScheme, setTerminalColorSchemeNotifications } = createUi();
-		queryTerminalColorScheme.mockResolvedValueOnce("light").mockResolvedValueOnce("dark");
+		queryTerminalColorScheme.mockResolvedValue("light");
 		const { settingsManager, setTheme: setPersistedTheme, flush } = createSettingsManager("light/dark");
 		const controller = new InteractiveThemeController(ui, settingsManager, {
 			showError: vi.fn(),
@@ -77,14 +93,14 @@ describe("InteractiveThemeController", () => {
 		expect(theme.name).toBe("dayowl");
 
 		await controller.applyFromSettings();
-		expect(theme.name).toBe("nightowl");
+		expect(theme.name).toBe("dayowl");
 		expect(queryTerminalColorScheme).toHaveBeenCalledTimes(2);
 		expect(setTerminalColorSchemeNotifications).toHaveBeenCalledWith(true);
 		expect(setPersistedTheme).not.toHaveBeenCalled();
 		expect(flush).not.toHaveBeenCalled();
 	});
 
-	it("keeps a paired invocation override synchronized with terminal appearance", async () => {
+	it("switches the paired override when terminal appearance changes", async () => {
 		setRegisteredThemes([{ name: "dayowl" }, { name: "nightowl" }] as Theme[]);
 		const { ui, queryTerminalColorScheme, emitTerminalColorScheme } = createUi();
 		queryTerminalColorScheme.mockResolvedValue("light");
@@ -102,7 +118,7 @@ describe("InteractiveThemeController", () => {
 		expect(theme.name).toBe("nightowl");
 	});
 
-	it("applies the invocation override instead of settings", async () => {
+	it("prefers a single-theme override over settings", async () => {
 		setRegisteredThemes([{ name: "nightowl" }] as Theme[]);
 		const { ui, queryTerminalBackgroundColor } = createUi();
 		const { settingsManager, setTheme: setPersistedTheme, flush } = createSettingsManager("light/dark");

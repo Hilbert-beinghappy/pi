@@ -38,8 +38,10 @@ export class InteractiveThemeController {
 		this.showError = options.showError;
 		this.onChanged = options.onChanged;
 		this.themeOverride = options.themeOverride;
-		this.activeThemeName =
-			this.themeOverride ?? resolveThemeSetting(this.settingsManager.getThemeSetting(), this.terminalTheme);
+		this.activeThemeName = resolveThemeSetting(
+			this.themeOverride ?? this.settingsManager.getThemeSetting(),
+			this.terminalTheme,
+		);
 		initTheme(this.activeThemeName, true);
 		this.bindTerminalColorSchemeListener();
 	}
