@@ -237,24 +237,24 @@ class SelectSubmenu extends Container {
 	}
 }
 
-function themeItems(availableThemes: string[], activeThemeOverride?: string): SelectItem[] {
+function themeItems(availableThemes: string[], { themeOverride }: { themeOverride?: string } = {}): SelectItem[] {
 	return availableThemes.map((name) => ({
 		value: name,
 		label: name,
-		description: name === activeThemeOverride ? "Active via --use-theme" : undefined,
+		description: name === themeOverride ? "Override from --use-theme" : undefined,
 	}));
 }
 
 const AUTOMATIC_THEME_VALUE = "/";
 
-function singleModeThemeItems(availableThemes: string[], activeThemeOverride?: string): SelectItem[] {
+function singleModeThemeItems(availableThemes: string[], themeOverride?: string): SelectItem[] {
 	return [
 		{
 			value: AUTOMATIC_THEME_VALUE,
 			label: "Automatic",
 			description: "Use separate themes for light and dark terminal appearance",
 		},
-		...themeItems(availableThemes, activeThemeOverride),
+		...themeItems(availableThemes, { themeOverride }),
 	];
 }
 
@@ -283,7 +283,8 @@ class ThemeSubmenu extends Container {
 	private readonly terminalTheme: TerminalTheme;
 	private readonly onDone: (selectedValue?: string) => void;
 	private readonly originalThemeSetting: string;
-	private readonly activeThemeOverride: string | undefined;
+	private readonly themeOverride: string | undefined;
+	private readonly resolvedThemeOverride: string | undefined;
 	private mode: "single" | "automatic";
 	private singleTheme: string;
 	private lightTheme: string;
@@ -303,7 +304,8 @@ class ThemeSubmenu extends Container {
 		this.terminalTheme = terminalTheme;
 		this.onDone = onDone;
 		this.originalThemeSetting = themeOverride ?? currentThemeSetting;
-		this.activeThemeOverride = resolveThemeSetting(themeOverride, terminalTheme);
+		this.themeOverride = themeOverride;
+		this.resolvedThemeOverride = resolveThemeSetting(themeOverride, terminalTheme);
 		const autoTheme = parseAutoThemeSetting(currentThemeSetting);
 		const automaticThemes = defaultAutomaticThemes(currentThemeSetting, availableThemes);
 		const fixedTheme = autoTheme || currentThemeSetting.includes("/") ? undefined : currentThemeSetting;
@@ -338,7 +340,7 @@ class ThemeSubmenu extends Container {
 		const menu = new SelectSubmenu(
 			"Theme",
 			"Select a theme, or choose Automatic to follow terminal appearance.",
-			singleModeThemeItems(this.availableThemes, this.activeThemeOverride),
+			singleModeThemeItems(this.availableThemes, this.resolvedThemeOverride),
 			this.singleTheme,
 			(value) => {
 				if (value === AUTOMATIC_THEME_VALUE) {
@@ -375,17 +377,11 @@ class ThemeSubmenu extends Container {
 				description: "Theme to use in automatic mode when the terminal is light",
 				currentValue: this.lightTheme,
 				submenu: (currentValue, done) =>
-					this.createThemeSelect(
-						"Light Theme",
-						"Select the theme to use for light terminal appearance",
-						currentValue,
-						done,
-						(value) => {
-							this.lightTheme = value;
-							this.callbacks.onThemePreview?.(this.getThemeSetting());
-							done(value);
-						},
-					),
+					this.createThemeSelect("light", currentValue, done, (value) => {
+						this.lightTheme = value;
+						this.callbacks.onThemePreview?.(this.getThemeSetting());
+						done(value);
+					}),
 			},
 			{
 				id: "dark-theme",
@@ -393,17 +389,11 @@ class ThemeSubmenu extends Container {
 				description: "Theme to use in automatic mode when the terminal is dark",
 				currentValue: this.darkTheme,
 				submenu: (currentValue, done) =>
-					this.createThemeSelect(
-						"Dark Theme",
-						"Select the theme to use for dark terminal appearance",
-						currentValue,
-						done,
-						(value) => {
-							this.darkTheme = value;
-							this.callbacks.onThemePreview?.(this.getThemeSetting());
-							done(value);
-						},
-					),
+					this.createThemeSelect("dark", currentValue, done, (value) => {
+						this.darkTheme = value;
+						this.callbacks.onThemePreview?.(this.getThemeSetting());
+						done(value);
+					}),
 			},
 			{
 				id: "apply",
@@ -445,20 +435,22 @@ class ThemeSubmenu extends Container {
 	}
 
 	private createThemeSelect(
-		title: string,
-		description: string,
+		appearance: TerminalTheme,
 		currentValue: string,
 		done: (selectedValue?: string) => void,
 		onSelect: (value: string) => void,
 	): SelectSubmenu {
+		const appearanceLabel = appearance === "light" ? "Light" : "Dark";
 		return new SelectSubmenu(
-			title,
-			description,
-			themeItems(this.availableThemes, this.activeThemeOverride),
+			`${appearanceLabel} Theme`,
+			`Select the theme to use for ${appearance} terminal appearance`,
+			themeItems(this.availableThemes, {
+				themeOverride: resolveThemeSetting(this.themeOverride, appearance),
+			}),
 			currentValue,
 			onSelect,
 			() => {
-				this.callbacks.onThemePreview?.(this.activeThemeOverride ?? this.getThemeSetting());
+				this.callbacks.onThemePreview?.(this.resolvedThemeOverride ?? this.getThemeSetting());
 				done();
 			},
 			(value) => this.callbacks.onThemePreview?.(value),

@@ -16,12 +16,12 @@ describe("SettingsSelectorComponent", () => {
 	});
 
 	describe("theme override", () => {
-		it("restores a paired override after canceling a nested preview", () => {
+		function openThemeSettings(currentTheme: string, themeOverride: string) {
 			const onThemePreview = vi.fn();
 			const selector = new SettingsSelectorComponent(
 				{
-					currentTheme: "light/dark",
-					themeOverride: "dayowl/nightowl",
+					currentTheme,
+					themeOverride,
 					terminalTheme: "dark",
 					availableThemes: ["dark", "light", "solarized", "dayowl", "nightowl"],
 					fullscreenScrollbar: "auto",
@@ -34,8 +34,30 @@ describe("SettingsSelectorComponent", () => {
 
 			for (const character of "Theme") settingsList.handleInput(character);
 			settingsList.handleInput("\r");
+			return { settingsList, onThemePreview };
+		}
+
+		it("marks the light side of a paired override", () => {
+			const { settingsList } = openThemeSettings("light/dark", "dayowl/nightowl");
+
 			settingsList.handleInput("\r");
-			expect(stripAnsi(settingsList.render(120).join("\n"))).toMatch(/nightowl\s+Active via --use-theme/);
+
+			expect(stripAnsi(settingsList.render(120).join("\n"))).toMatch(/dayowl\s+Override from --use-theme/);
+		});
+
+		it("marks the dark side of a paired override", () => {
+			const { settingsList } = openThemeSettings("light/dark", "dayowl/nightowl");
+
+			settingsList.handleInput("\x1b[B");
+			settingsList.handleInput("\r");
+
+			expect(stripAnsi(settingsList.render(120).join("\n"))).toMatch(/nightowl\s+Override from --use-theme/);
+		});
+
+		it("restores a paired override after canceling a nested preview", () => {
+			const { settingsList, onThemePreview } = openThemeSettings("light/dark", "dayowl/nightowl");
+
+			settingsList.handleInput("\r");
 			settingsList.handleInput("\x1b[B");
 			settingsList.handleInput("\x1b");
 			settingsList.handleInput("\x1b");
@@ -43,25 +65,15 @@ describe("SettingsSelectorComponent", () => {
 			expect(onThemePreview.mock.calls.flat()).toEqual(["solarized", "nightowl", "dayowl/nightowl"]);
 		});
 
-		it("restores a single-theme override after canceling a direct preview", () => {
-			const onThemePreview = vi.fn();
-			const selector = new SettingsSelectorComponent(
-				{
-					currentTheme: "light",
-					themeOverride: "dayowl",
-					terminalTheme: "dark",
-					availableThemes: ["dark", "light", "solarized", "dayowl"],
-					fullscreenScrollbar: "auto",
-					warnings: {},
-					availableThinkingLevels: [],
-				} as unknown as SettingsConfig,
-				{ onThemePreview } as unknown as SettingsCallbacks,
-			);
-			const settingsList = selector.getSettingsList();
+		it("marks a single-theme override", () => {
+			const { settingsList } = openThemeSettings("light", "dayowl");
 
-			for (const character of "Theme") settingsList.handleInput(character);
-			settingsList.handleInput("\r");
-			expect(stripAnsi(settingsList.render(120).join("\n"))).toMatch(/dayowl\s+Active via --use-theme/);
+			expect(stripAnsi(settingsList.render(120).join("\n"))).toMatch(/dayowl\s+Override from --use-theme/);
+		});
+
+		it("restores a single-theme override after canceling a direct preview", () => {
+			const { settingsList, onThemePreview } = openThemeSettings("light", "dayowl");
+
 			settingsList.handleInput("\x1b[B");
 			settingsList.handleInput("\x1b");
 
