@@ -135,7 +135,7 @@ export class InteractiveThemeController {
 	private applyTerminalTheme(terminalTheme: TerminalTheme): void {
 		if (!this.autoSyncEnabled) return;
 		this.terminalTheme = terminalTheme;
-		const autoTheme = parseAutoThemeSetting(this.settingsManager.getThemeSetting());
+		const autoTheme = parseAutoThemeSetting(this.themeOverride ?? this.settingsManager.getThemeSetting());
 		if (!autoTheme) {
 			this.setAutoSync(false);
 			return;
