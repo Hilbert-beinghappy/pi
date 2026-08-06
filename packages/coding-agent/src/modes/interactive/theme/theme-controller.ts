@@ -51,13 +51,7 @@ export class InteractiveThemeController {
 	}
 
 	async applyFromSettings(): Promise<void> {
-		if (this.themeOverride !== undefined) {
-			this.setAutoSync(false);
-			this.applyThemeName(this.themeOverride, true);
-			return;
-		}
-
-		const themeSetting = this.settingsManager.getThemeSetting();
+		const themeSetting = this.themeOverride ?? this.settingsManager.getThemeSetting();
 		const autoTheme = parseAutoThemeSetting(themeSetting);
 		if (autoTheme) {
 			this.terminalTheme = await detectTerminalThemeForAuto({ ui: this.ui, timeoutMs: 100 });
