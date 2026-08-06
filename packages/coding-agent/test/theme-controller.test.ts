@@ -1,5 +1,9 @@
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type { TUI } from "@earendil-works/pi-tui";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { ENV_AGENT_DIR } from "../src/config.ts";
 import type { SettingsManager } from "../src/core/settings-manager.ts";
 import {
 	initTheme,
@@ -56,10 +60,18 @@ function createSettingsManager(themeSetting: string | undefined): {
 	return { settingsManager, setTheme, flush };
 }
 
+let tempDir: string;
+
+beforeEach(() => {
+	tempDir = mkdtempSync(join(tmpdir(), "pi-theme-controller-"));
+	vi.stubEnv(ENV_AGENT_DIR, tempDir);
+});
+
 afterEach(() => {
 	setRegisteredThemes([]);
 	initTheme("dark");
 	vi.unstubAllEnvs();
+	rmSync(tempDir, { recursive: true, force: true });
 });
 
 describe("InteractiveThemeController", () => {
@@ -116,6 +128,45 @@ describe("InteractiveThemeController", () => {
 
 		emitTerminalColorScheme("dark");
 		expect(theme.name).toBe("nightowl");
+	});
+
+	it("reports an unavailable single-theme override", async () => {
+		const { ui } = createUi();
+		const { settingsManager } = createSettingsManager("light/dark");
+		const showError = vi.fn();
+		const controller = new InteractiveThemeController(ui, settingsManager, {
+			showError,
+			onChanged: vi.fn(),
+			themeOverride: "missing",
+		});
+
+		await controller.applyFromSettings();
+
+		expect(theme.name).toBe("dark");
+		expect(showError).toHaveBeenCalledOnce();
+		expect(showError.mock.calls[0][0]).toContain('Failed to load theme "missing"');
+		expect(showError.mock.calls[0][0]).toContain("Fell back to dark theme.");
+	});
+
+	it("validates only the active side of a paired override", async () => {
+		setRegisteredThemes([{ name: "nightowl" }] as Theme[]);
+		const { ui, queryTerminalColorScheme } = createUi();
+		queryTerminalColorScheme.mockResolvedValueOnce("light").mockResolvedValueOnce("dark");
+		const { settingsManager } = createSettingsManager("light/dark");
+		const showError = vi.fn();
+		const controller = new InteractiveThemeController(ui, settingsManager, {
+			showError,
+			onChanged: vi.fn(),
+			themeOverride: "missing/nightowl",
+		});
+
+		await controller.applyFromSettings();
+		expect(theme.name).toBe("dark");
+		expect(showError).toHaveBeenCalledOnce();
+
+		await controller.applyFromSettings();
+		expect(theme.name).toBe("nightowl");
+		expect(showError).toHaveBeenCalledOnce();
 	});
 
 	it("prefers a single-theme override over settings", async () => {
