@@ -15,31 +15,58 @@ describe("SettingsSelectorComponent", () => {
 		setKeybindings(new KeybindingsManager());
 	});
 
-	it("restores the invocation override when theme previews are canceled", () => {
-		const onThemePreview = vi.fn();
-		const selector = new SettingsSelectorComponent(
-			{
-				currentTheme: "light/dark",
-				themeOverride: "solarized",
-				terminalTheme: "dark",
-				availableThemes: ["dark", "light", "nightowl", "solarized"],
-				fullscreenScrollbar: "auto",
-				warnings: {},
-				availableThinkingLevels: [],
-			} as unknown as SettingsConfig,
-			{ onThemePreview } as unknown as SettingsCallbacks,
-		);
-		const settingsList = selector.getSettingsList();
+	describe("theme override", () => {
+		it("restores a paired override after canceling a nested preview", () => {
+			const onThemePreview = vi.fn();
+			const selector = new SettingsSelectorComponent(
+				{
+					currentTheme: "light/dark",
+					themeOverride: "dayowl/nightowl",
+					terminalTheme: "dark",
+					availableThemes: ["dark", "light", "solarized", "dayowl", "nightowl"],
+					fullscreenScrollbar: "auto",
+					warnings: {},
+					availableThinkingLevels: [],
+				} as unknown as SettingsConfig,
+				{ onThemePreview } as unknown as SettingsCallbacks,
+			);
+			const settingsList = selector.getSettingsList();
 
-		for (const character of "Theme") settingsList.handleInput(character);
-		settingsList.handleInput("\r");
-		settingsList.handleInput("\r");
-		expect(stripAnsi(settingsList.render(120).join("\n"))).toMatch(/solarized\s+Active via --use-theme/);
-		settingsList.handleInput("\x1b[B");
-		settingsList.handleInput("\x1b");
-		settingsList.handleInput("\x1b");
+			for (const character of "Theme") settingsList.handleInput(character);
+			settingsList.handleInput("\r");
+			settingsList.handleInput("\r");
+			expect(stripAnsi(settingsList.render(120).join("\n"))).toMatch(/nightowl\s+Active via --use-theme/);
+			settingsList.handleInput("\x1b[B");
+			settingsList.handleInput("\x1b");
+			settingsList.handleInput("\x1b");
 
-		expect(onThemePreview.mock.calls.flat()).toEqual(["nightowl", "solarized", "solarized"]);
+			expect(onThemePreview.mock.calls.flat()).toEqual(["solarized", "nightowl", "dayowl/nightowl"]);
+		});
+
+		it("restores a single-theme override after canceling a direct preview", () => {
+			const onThemePreview = vi.fn();
+			const selector = new SettingsSelectorComponent(
+				{
+					currentTheme: "light",
+					themeOverride: "dayowl",
+					terminalTheme: "dark",
+					availableThemes: ["dark", "light", "solarized", "dayowl"],
+					fullscreenScrollbar: "auto",
+					warnings: {},
+					availableThinkingLevels: [],
+				} as unknown as SettingsConfig,
+				{ onThemePreview } as unknown as SettingsCallbacks,
+			);
+			const settingsList = selector.getSettingsList();
+
+			for (const character of "Theme") settingsList.handleInput(character);
+			settingsList.handleInput("\r");
+			expect(stripAnsi(settingsList.render(120).join("\n"))).toMatch(/dayowl\s+Active via --use-theme/);
+			settingsList.handleInput("\x1b[B");
+			settingsList.handleInput("\x1b");
+
+			expect(onThemePreview.mock.calls.flat()).toEqual(["solarized", "dayowl"]);
+		});
 	});
 
 	it("cycles through fullscreen scrollbar modes", () => {
